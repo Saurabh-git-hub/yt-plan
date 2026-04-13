@@ -1,0 +1,75 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id         String     @id @default(cuid())
+  clerkId    String     @unique
+  email      String     @unique
+  createdAt  DateTime   @default(now())
+  playlists  Playlist[]
+
+  @@index([createdAt])
+}
+
+model Playlist {
+  id            String    @id @default(cuid())
+  title         String
+  userId        String
+  totalVideos   Int       @default(0)
+  totalDuration Int       @default(0)
+  createdAt     DateTime  @default(now())
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  videos        Video[]
+  progress      Progress?
+  goal          Goal?
+
+  @@index([userId, createdAt])
+}
+
+model Video {
+  id          String   @id @default(cuid())
+  playlistId  String
+  title       String
+  youtubeUrl  String
+  youtubeId   String
+  duration    Int      @default(0)
+  watchedSeconds Int    @default(0)
+  notes       String   @default("")
+  order       Int
+  isWatched   Boolean  @default(false)
+  playlist    Playlist @relation(fields: [playlistId], references: [id], onDelete: Cascade)
+
+  @@index([playlistId, order])
+}
+
+enum GoalMode {
+  DAYS
+  MINUTES
+  DEADLINE
+}
+
+model Progress {
+  id                  String   @id @default(cuid())
+  playlistId          String   @unique
+  completedVideos     Int      @default(0)
+  percentageCompleted Float    @default(0)
+  playlist            Playlist @relation(fields: [playlistId], references: [id], onDelete: Cascade)
+}
+
+model Goal {
+  id                 String   @id @default(cuid())
+  playlistId         String   @unique
+  mode               GoalMode @default(DAYS)
+  targetDays         Int
+  minutesPerDay      Int?
+  deadline           DateTime?
+  videosPerDay       Int
+  estimatedDailyTime Int
+  playlist           Playlist @relation(fields: [playlistId], references: [id], onDelete: Cascade)
+}
