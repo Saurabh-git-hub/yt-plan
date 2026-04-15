@@ -26,6 +26,10 @@ interface YouTubePlayerApi {
   seekTo: (seconds: number, allowSeekAhead: boolean) => void;
   getCurrentTime: () => number;
   getDuration: () => number;
+  playVideo: () => void;
+  pauseVideo: () => void;
+  mute: () => void;
+  unMute: () => void;
 }
 
 const PLAYER_STATE_ENDED = 0;
@@ -96,6 +100,7 @@ export function YouTubePlayer({
   const playerRef = useRef<YouTubePlayerApi | null>(null);
   const intervalRef = useRef<number | null>(null);
   const durationDiscoveryRef = useRef<number | null>(null);
+  const metadataWarmupTimerRef = useRef<number | null>(null);
   const initialSeekRef = useRef<number>(Math.floor(initialWatchedSeconds));
   const initialIsWatchedRef = useRef<boolean>(initialIsWatched);
   const lastSyncedSecondRef = useRef<number>(Math.floor(initialWatchedSeconds));
@@ -109,6 +114,7 @@ export function YouTubePlayer({
   const onTrackRef = useRef(onTrack);
   const onSyncEventRef = useRef(onSyncEvent);
   const onVideoEndedRef = useRef(onVideoEnded);
+  const autoPlayEnabledRef = useRef(autoPlayEnabled);
 
   useEffect(() => {
     onTrackRef.current = onTrack;
@@ -121,6 +127,10 @@ export function YouTubePlayer({
   useEffect(() => {
     onVideoEndedRef.current = onVideoEnded;
   }, [onVideoEnded]);
+
+  useEffect(() => {
+    autoPlayEnabledRef.current = autoPlayEnabled;
+  }, [autoPlayEnabled]);
 
   useEffect(() => {
     isWatchedRef.current = initialIsWatched;
@@ -136,6 +146,45 @@ export function YouTubePlayer({
 
       window.clearInterval(durationDiscoveryRef.current);
       durationDiscoveryRef.current = null;
+    };
+
+    const clearMetadataWarmupTimer = () => {
+      if (!metadataWarmupTimerRef.current) {
+        return;
+      }
+
+      window.clearTimeout(metadataWarmupTimerRef.current);
+      metadataWarmupTimerRef.current = null;
+    };
+
+    const warmupDurationDiscovery = () => {
+      if (autoPlayEnabledRef.current) {
+        return;
+      }
+
+      const player = playerRef.current;
+      if (!player) {
+        return;
+      }
+
+      try {
+        player.mute();
+        player.playVideo();
+
+        clearMetadataWarmupTimer();
+        metadataWarmupTimerRef.current = window.setTimeout(() => {
+          try {
+            player.pauseVideo();
+            player.unMute();
+          } catch {
+            // Best-effort cleanup only.
+          }
+
+          void trySyncDuration();
+        }, 600);
+      } catch {
+        // Ignore warmup errors; normal duration discovery continues.
+      }
     };
 
     const syncPosition = async (force = false) => {
@@ -295,6 +344,13 @@ export function YouTubePlayer({
                   }
                 });
               }, DURATION_DISCOVERY_INTERVAL_MS);
+
+              // Some videos expose duration only after playback starts once.
+              warmupDurationDiscovery();
+            }
+
+            if (autoPlayEnabledRef.current) {
+              event.target.playVideo();
             }
 
             lastSyncedAtRef.current = Date.now();
@@ -319,7 +375,7 @@ export function YouTubePlayer({
                 }
                 void syncPosition(true);
 
-                if (!endedHandledRef.current && hasStartedPlaybackRef.current && autoPlayEnabled) {
+                if (!endedHandledRef.current && hasStartedPlaybackRef.current && autoPlayEnabledRef.current) {
                   endedHandledRef.current = true;
                   onVideoEndedRef.current?.();
                 }
@@ -343,6 +399,7 @@ export function YouTubePlayer({
     return () => {
       isUnmounted = true;
       clearDurationDiscovery();
+      clearMetadataWarmupTimer();
       if (intervalRef.current) {
         window.clearInterval(intervalRef.current);
       }
@@ -350,7 +407,7 @@ export function YouTubePlayer({
       playerRef.current?.destroy();
       playerRef.current = null;
     };
-  }, [autoPlayEnabled, playlistId, videoId, youtubeId]);
+  }, [playlistId, videoId, youtubeId]);
 
   return (
     <div className="overflow-hidden rounded-2xl border border-white/10 bg-[#111712]/80 backdrop-blur-xl">

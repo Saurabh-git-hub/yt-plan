@@ -13,6 +13,7 @@ model User {
   email      String     @unique
   createdAt  DateTime   @default(now())
   playlists  Playlist[]
+  feedbacks  Feedback[]
 
   @@index([createdAt])
 }
@@ -23,6 +24,8 @@ model Playlist {
   userId        String
   totalVideos   Int       @default(0)
   totalDuration Int       @default(0)
+  isShared      Boolean   @default(false)
+  shareToken    String?   @unique
   createdAt     DateTime  @default(now())
   user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   videos        Video[]
@@ -72,4 +75,26 @@ model Goal {
   videosPerDay       Int
   estimatedDailyTime Int
   playlist           Playlist @relation(fields: [playlistId], references: [id], onDelete: Cascade)
+}
+
+enum FeedbackStatus {
+  OPEN
+  IN_REVIEW
+  RESOLVED
+}
+
+model Feedback {
+  id           String         @id @default(cuid())
+  userId       String
+  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subject      String
+  message      String
+  status       FeedbackStatus @default(OPEN)
+  adminReply   String         @default("")
+  resolvedAt   DateTime?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
 }

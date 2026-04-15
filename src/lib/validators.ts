@@ -57,3 +57,22 @@ export const videoPositionSchema = z.object({
   watchedSeconds: z.number().min(0),
   durationSeconds: z.number().int().min(0).optional(),
 });
+
+export const createFeedbackSchema = z.object({
+  subject: z
+    .string()
+    .transform((value) => sanitizePlainText(value, 140))
+    .pipe(z.string().min(4, "Subject must be at least 4 characters").max(140)),
+  message: z
+    .string()
+    .transform((value) => sanitizePlainText(value, 3000))
+    .pipe(z.string().min(10, "Feedback message must be at least 10 characters").max(3000)),
+});
+
+export const updateFeedbackSchema = z.object({
+  status: z.enum(["OPEN", "IN_REVIEW", "RESOLVED"]),
+  adminReply: z
+    .string()
+    .transform((value) => sanitizePlainText(value, 3000))
+    .pipe(z.string().max(3000, "Reply cannot exceed 3000 characters")),
+});

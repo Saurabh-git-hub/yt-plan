@@ -5,6 +5,11 @@ import { db } from "@/lib/db";
 import { isDatabaseUnavailableError } from "@/lib/errors";
 
 const DB_OPERATION_TIMEOUT_MS = 8000;
+const ADMIN_EMAIL = "saurabh20002004@gmail.com";
+
+export function isAdminEmail(email: string) {
+  return email.trim().toLowerCase() === ADMIN_EMAIL;
+}
 
 function databaseTimeoutError() {
   return new Error("DATABASE_TIMEOUT");

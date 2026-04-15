@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { UserButton, useUser } from "@clerk/nextjs";
-import { BookOpenCheck, House, Menu, PanelLeftClose, Settings, X } from "lucide-react";
+import { BookOpenCheck, House, Menu, MessageSquareText, PanelLeftClose, X } from "lucide-react";
 
 import { PlanYtLogo } from "@/components/brand/planyt-logo";
 
@@ -13,8 +13,10 @@ import { cn } from "@/lib/utils";
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: House },
   { href: "/playlists", label: "Playlists", icon: BookOpenCheck },
-  { href: "/settings", label: "Settings", icon: Settings },
+  { href: "/feedback", label: "Feedback", icon: MessageSquareText },
 ];
+
+const ADMIN_EMAIL = "saurabh20002004@gmail.com";
 
 function getDisplayNameFromEmail(email: string) {
   const localPart = email.split("@")[0]?.trim();
@@ -33,16 +35,50 @@ export function Sidebar({
   const pathname = usePathname();
   const { user } = useUser();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [adminFeedbackBadgeCount, setAdminFeedbackBadgeCount] = useState(0);
+
+  const isAdmin = userEmail.trim().toLowerCase() === ADMIN_EMAIL;
 
   const fallbackFromEmail = getDisplayNameFromEmail(userEmail);
   const profileName = user?.username?.trim() || user?.fullName?.trim() || user?.firstName?.trim();
   const userName = profileName && profileName.length > 0 ? profileName : fallbackFromEmail;
+
+  useEffect(() => {
+    if (!isAdmin) {
+      return;
+    }
+
+    let isCancelled = false;
+
+    const loadUnreadFeedbackCount = async () => {
+      try {
+        const response = await fetch("/api/feedback/unread-count", { cache: "no-store" });
+        if (!response.ok || isCancelled) {
+          return;
+        }
+
+        const data = (await response.json()) as { count?: number };
+        if (!isCancelled) {
+          setAdminFeedbackBadgeCount(Math.max(0, data.count ?? 0));
+        }
+      } catch {
+        // Ignore badge fetch errors so navigation remains unaffected.
+      }
+    };
+
+    void loadUnreadFeedbackCount();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [isAdmin, pathname]);
 
   const renderNavItems = (isCompact: boolean, onClick?: () => void) => (
     <nav className="space-y-2">
       {navItems.map((item) => {
         const Icon = item.icon;
         const isActive = pathname.startsWith(item.href);
+        const showFeedbackBadge = isAdmin && item.href === "/feedback" && adminFeedbackBadgeCount > 0;
 
         return (
           <Link
@@ -50,7 +86,7 @@ export function Sidebar({
             href={item.href}
             onClick={onClick}
             className={cn(
-              "group flex items-center rounded-xl px-3 py-3 text-sm transition-all duration-300 ease-out",
+              "group relative flex items-center rounded-xl px-3 py-3 text-sm transition-all duration-300 ease-out",
               isCompact ? "justify-center" : "gap-3",
               isActive
                 ? "border border-lime-300/35 bg-lime-300/12 text-lime-100 shadow-[0_12px_28px_rgba(0,0,0,0.22)]"
@@ -68,6 +104,18 @@ export function Sidebar({
             >
               {item.label}
             </span>
+              {showFeedbackBadge ? (
+                <span
+                  className={cn(
+                    "inline-flex min-w-5 items-center justify-center rounded-full border border-lime-300/45 bg-lime-300/20 px-1.5 text-[10px] font-semibold text-lime-100",
+                    isCompact ? "absolute right-2 top-2 min-w-4 px-1 text-[9px]" : "ml-auto",
+                  )}
+                  aria-label={`${adminFeedbackBadgeCount} unread feedback items`}
+                  title={`${adminFeedbackBadgeCount} unread feedback items`}
+                >
+                  {adminFeedbackBadgeCount > 99 ? "99+" : adminFeedbackBadgeCount}
+                </span>
+              ) : null}
           </Link>
         );
       })}

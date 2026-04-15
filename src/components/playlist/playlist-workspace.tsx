@@ -91,7 +91,10 @@ export function PlaylistWorkspace({
   const [isCourseStructureOpen, setIsCourseStructureOpen] = useState(true);
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [isSharingPlaylist, setIsSharingPlaylist] = useState(false);
+  const [autoplayRequestedVideoId, setAutoplayRequestedVideoId] = useState<string | null>(null);
   const notesSaveTimerRef = useRef<number | null>(null);
+  const playerSectionRef = useRef<HTMLElement | null>(null);
 
   // Reused lookup map avoids repeated O(n) scans during reorder/select actions.
   const videoMap = useMemo(
@@ -323,6 +326,37 @@ export function PlaylistWorkspace({
     });
   };
 
+  const onSharePlaylist = async () => {
+    setIsSharingPlaylist(true);
+    setError(null);
+
+    try {
+      const response = await fetch(`/api/playlists/${playlistId}/share`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+
+      if (!response.ok) {
+        pushToast("Could not create share link", "error");
+        return;
+      }
+
+      const data = (await response.json()) as { sharePath?: string | null };
+      if (!data.sharePath) {
+        pushToast("Share link unavailable", "error");
+        return;
+      }
+
+      const absoluteLink = `${window.location.origin}${data.sharePath}`;
+      await navigator.clipboard.writeText(absoluteLink);
+      pushToast("Share link copied", "success");
+    } catch {
+      pushToast("Could not copy share link", "error");
+    } finally {
+      setIsSharingPlaylist(false);
+    }
+  };
+
   const saveNotesForVideo = useCallback(
     async (videoId: string, nextNotes: string, showToast = true) => {
       setError(null);
@@ -410,10 +444,15 @@ export function PlaylistWorkspace({
       notesSaveTimerRef.current = null;
     }
 
+    setAutoplayRequestedVideoId(videoId);
     setCurrentVideoId(videoId);
     const selected = videoMap.get(videoId);
     setNotesDraft(selected?.notes ?? "");
     setNotesStatus("idle");
+
+    window.requestAnimationFrame(() => {
+      playerSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
   };
 
   useEffect(() => {
@@ -459,7 +498,7 @@ export function PlaylistWorkspace({
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(260px,1fr)] lg:items-start">
-        <section className="space-y-5">
+        <section ref={playerSectionRef} className="space-y-5">
           {currentVideo ? (
             <YouTubePlayer
               key={currentVideo.id}
@@ -468,7 +507,13 @@ export function PlaylistWorkspace({
               videoId={currentVideo.id}
               initialWatchedSeconds={currentVideo.watchedSeconds}
               initialIsWatched={currentVideo.isWatched}
+              autoPlayEnabled={autoplayRequestedVideoId === currentVideo.id}
               onTrack={(tracked) => onPlayerTrack(currentVideo.id, tracked)}
+              onSyncEvent={() => {
+                if (autoplayRequestedVideoId === currentVideo.id) {
+                  setAutoplayRequestedVideoId(null);
+                }
+              }}
             />
           ) : null}
 
@@ -520,6 +565,17 @@ export function PlaylistWorkspace({
               Save Notes
             </button>
           </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              void onSharePlaylist();
+            }}
+            className="btn-secondary h-10 w-full px-4 text-xs"
+            disabled={isPending || isSharingPlaylist}
+          >
+            {isSharingPlaylist ? "Creating share link..." : "Share Playlist"}
+          </button>
         </aside>
       </div>
 
