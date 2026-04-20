@@ -19,14 +19,7 @@ PlanYt is a modern full-stack learning SaaS that helps you convert scattered You
 
 ---
 
-## <div align="center">🎬 Demo / 🌐 Live
-
-Add your links here:
-
-- Demo Video: https://your-demo-link
-- Live App: https://your-live-link
-
----
+## <div align="center"> [🎬 Demo Video](https://drive.google.com/file/d/1S-p_A8bPLl973tqX9U0bZ6hNERK5lB1R/view?usp=sharing)  / [ 🌐 Live Demo](https://plan-yt.vercel.app/)
 
 ## ✨ Features
 
